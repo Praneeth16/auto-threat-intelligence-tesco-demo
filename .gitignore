@@ -18,3 +18,10 @@ dist/
 .DS_Store
 # Build artifacts
 app/frontend/dist/
+
+# Frontend build artifacts
+app/frontend/*.tsbuildinfo
+app/frontend/tsconfig.tsbuildinfo
+
+# Playwright
+.playwright-mcp/

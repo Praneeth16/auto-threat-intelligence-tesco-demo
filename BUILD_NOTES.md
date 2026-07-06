@@ -89,6 +89,32 @@ PLAN Section 0 (rules 3 and 8).
   (`tesco` + `clubcard`) clears the >=85 threshold while single-token lookalikes
   sit at 75 and genuinely unrelated domains stay below 30.
 
+## Stage 7: React frontend (AppKit + frontend-design)
+
+- **AppKit scope decision.** The "leverage AppKit" instruction arrived after the
+  FastAPI backend (Stage 6, PLAN 9.2) was built and contract-tested. AppKit is a
+  full-stack Express framework; a full swap would discard the 13 passing contract
+  tests and the tested SSE/OBO/Lakebase integration and diverge from the plan's
+  architecture. Interpretation: leverage AppKit's design system and Databricks
+  UI conventions (the `@databricks/appkit-ui` Shadcn/Radix/Tailwind + ECharts
+  aesthetic, Databricks brand teal) for the React frontend, keeping the FastAPI
+  backend the plan mandates. If a full AppKit/Express rewrite is wanted, it is a
+  clean follow-up: the SSE event contract and REST paths would carry over.
+- **Design direction (frontend-design skill).** Palette encodes the three-layer
+  architecture, not decoration: teal = data plane (findings), violet = AI plane
+  (agent/briefs), coral = human plane (approval gate). Deep situation-room slate
+  base, not the AI-default hacker black. Type: Space Grotesk (display / risk
+  numbers), Inter (body), JetBrains Mono (indicators). Signature element: the
+  live-climbing risk meter on the hero finding.
+- **Stack:** Vite + React 18 + TypeScript, Recharts for the metrics. Builds into
+  `dist/`, which the FastAPI backend serves. Dev server proxies `/api` to the
+  local backend. No browser storage APIs (PLAN 4.4).
+- **Verified live:** built the bundle, served it from the backend with the
+  in-memory repo, drove the app in a headless browser. All four views render
+  (Director Console, Live Triage Board, Approval Queue, Metrics Strip); clicking
+  Approve completed the full round-trip (React -> FastAPI -> SSE queue.updated ->
+  React), emptying the queue. Screenshot confirmed the plane-color system reads.
+
 ## Codex review (Stage 1)
 
 Ran `/codex review` on the Stage 1 diff. Three findings, all fixed:
