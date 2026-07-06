@@ -3,6 +3,33 @@
 Deviations from PLAN.md and platform-status caveats, recorded as required by
 PLAN Section 0 (rules 3 and 8).
 
+## Definition of done (PLAN 13.2)
+
+- [x] `pytest datagen/tests` green locally (44 tests).
+- [x] Full suite green (107 tests: datagen, app backend, pipelines, agents).
+- [x] Lakebase schema applies live; policy_store seeded; synced tables readable.
+- [x] Scoring reproduces the hero finding at rank #1 with expected components.
+- [x] Triage agent runs its full tool loop on the hero and writes a grounded
+      brief (verified live); router queues the tier-2 action.
+- [x] FastAPI contract tests pass; SSE broker emits every event type with
+      reconnect replay.
+- [x] All four React views render live; Approve completes the round-trip.
+- [x] A rejection routes reason-coded feedback; the autumn sibling auto-closes
+      from the allowlist.
+- [x] Pre-baked v1-vs-v2 MLflow comparison renders (illustrative, labeled).
+- [x] Sigma rules validate through pySigma and convert to SPL; graph yields 3
+      labeled communities.
+- [x] Every indicator in UI, briefs, reports, README is defanged.
+- [x] No em dashes, no banned vocabulary anywhere (grep passes; PLAN.md itself
+      excluded).
+- [x] `requirements.txt` pinned; this file records deviations and caveats.
+
+Notebook execution (`00_load_world`, `99_validate`, the Lakeflow pipeline, the
+eval build) is the documented instructor run-once in-workspace; the pure-Python
+cores those notebooks call are all locally tested and the workspace targets are
+proven live (schema applied, ai_query-free enrichment call succeeds, triage
+brief generated).
+
 ## Environment
 
 - Target Databricks workspace: profile `fe-vm-lakebase-praneeth`
