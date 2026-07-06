@@ -1,0 +1,36 @@
+"""Workspace targets for the Tesco SOC demo on the lakebase-praneeth workspace.
+
+Every pipeline, notebook, and app reads these so the catalog/schema/volume and
+Lakebase instance are named in exactly one place. Overridable by environment
+variables so the same code runs against a different workspace without edits.
+"""
+
+from __future__ import annotations
+
+import os
+
+# Unity Catalog target (managed catalog on fe-vm-lakebase-praneeth).
+CATALOG = os.environ.get("SOC_CATALOG", "serverless_lakebase_praneeth_catalog")
+SCHEMA = os.environ.get("SOC_SCHEMA", "tesco_soc_demo")
+
+# UC Volume for raw feed/report files.
+VOLUME = os.environ.get("SOC_VOLUME", "soc_shared")
+VOLUME_ROOT = f"/Volumes/{CATALOG}/{SCHEMA}/{VOLUME}"
+RAW_ROOT = f"{VOLUME_ROOT}/raw"
+
+# Lakebase Autoscaling instance that backs the operational state (Stage 3).
+# Reused across sessions; created once by the instructor if absent.
+LAKEBASE_INSTANCE = os.environ.get("SOC_LAKEBASE_INSTANCE", "tesco-soc-lakebase")
+
+# Lakebase (Postgres) database + schema the app reads/writes.
+LAKEBASE_DATABASE = os.environ.get("SOC_LAKEBASE_DATABASE", "databricks_postgres")
+LAKEBASE_SCHEMA = os.environ.get("SOC_LAKEBASE_SCHEMA", "public")
+
+# FMAPI chat endpoint for ai_query enrichment (Stage 4). A config cell in the
+# pipeline picks a fallback if this endpoint is absent in the workspace.
+LLM_ENDPOINT = os.environ.get("SOC_LLM_ENDPOINT", "databricks-claude-sonnet-4-5")
+
+
+def fq(table: str) -> str:
+    """Fully qualify a Unity Catalog table name under the demo catalog/schema."""
+    return f"{CATALOG}.{SCHEMA}.{table}"
