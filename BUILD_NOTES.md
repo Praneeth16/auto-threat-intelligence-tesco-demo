@@ -37,6 +37,26 @@ PLAN Section 0 (rules 3 and 8).
   stays reproducible. Timestamps are emitted as `...T..:..:..000Z` per the STIX
   timestamp grammar (caught by codex review).
 
+## Stage 3: Lakebase schema
+
+- **Lakebase instance:** `tesco-soc-lakebase` (CU_1, PG 16) created on the
+  workspace. read_write DNS `ep-cool-mode-d2oleimw.database.us-east-1.cloud.databricks.com`.
+  Database `databricks_postgres`, schema `public`.
+- **Credential API deviation.** The lakebase skill doc shows
+  `w.postgres.generate_database_credential(endpoint=<name>)`. On the current
+  SDK that signature rejects a plain instance name
+  (`InvalidParameterValue: Endpoint name expects 'projects/.../endpoints/...'`).
+  The working call is
+  `w.database.generate_database_credential(request_id=<uuid>, instance_names=[<name>])`.
+  `connection.py` uses that. Recorded so Stages 4/6 reuse the right call.
+- **Reverse sync is a Job, not a synced table.** Lakebase synced tables are
+  Delta-to-Postgres only. App writes (decisions, feedback, resolutions) go
+  Postgres-to-Delta, which is out of scope for synced tables, so `sync_config.py`
+  documents them as a scheduled Job (Stage 8) into `mirror_*` Delta tables.
+- **Verified live:** `schema.sql` applied clean to the instance (9 tables +
+  `case_memory_v`), `seed_policy_store` seeded 7 rows at version 1, `replay_state`
+  single-row control initialized. Policy matrix unit-tested (4 tests) without a DB.
+
 ## Codex review (Stage 1)
 
 Ran `/codex review` on the Stage 1 diff. Three findings, all fixed:
