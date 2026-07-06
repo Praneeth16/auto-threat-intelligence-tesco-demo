@@ -1,0 +1,22 @@
+# Agent Bricks Information Extraction agent config (PLAN 8.2).
+# Registered by the instructor; called by pipelines/stream/extract_reports.py.
+name: soc_extraction_agent
+type: information_extraction
+description: >
+  Extracts threat-intel entities from unstructured CTI reports into the
+  Section 5.8 schema. Catches what regex cannot: prose-described and defanged
+  indicators, TTPs, targeted brands, recommended detections.
+model_endpoint: databricks-meta-llama-3-3-70b-instruct  # via AI Gateway
+schema:
+  actors: list[string]
+  iocs: list[{value: string, type: string}]
+  ttps: list[string]          # MITRE IDs
+  targeted_brands: list[string]
+  phishing_kits: list[string]
+  confidence: enum[low, medium, high]
+  summary: string
+  recommended_detections: list[string]
+tracing:
+  mlflow: true
+eval:
+  recall_against: gt_report_entities   # warn below 0.85 (Stage 8)

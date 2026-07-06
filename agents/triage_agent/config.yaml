@@ -1,0 +1,29 @@
+# Agent Bricks registration config for the triage agent (PLAN 8.1).
+# The instructor registers this from the Agent Bricks UI / SDK and wires the
+# MCP tools (UC functions). Harness: single agent (not a multi-agent
+# supervisor) so it is debuggable on demo morning.
+name: soc_triage_agent
+description: >
+  Investigates one suspicious domain by calling evidence tools, then writes a
+  grounded brief and recommends a tiered action with a confidence score.
+harness: single_agent
+model_endpoint: databricks-meta-llama-3-3-70b-instruct  # via AI Gateway
+system_prompt_ref: agents/triage_agent/prompt.py::SYSTEM_PROMPT
+# MCP tools exposed as Unity Catalog functions (Stage 5 tools/).
+tools:
+  - query_telemetry
+  - check_auth_anomalies
+  - get_user_context
+  - get_campaign_cluster
+  - get_report_context
+  - lookup_policy
+  - search_case_memory
+genie_space: soc_hunting   # curated Genie space for ad-hoc hunting (Act 3)
+sandbox: enabled           # Databricks Sandbox for backtests
+tracing:
+  mlflow: true             # every invocation traced (Stage 8)
+brief_constraints:
+  - no facts absent from evidence tools
+  - all indicators defanged
+  - sections: [What happened, Who is affected, Evidence, Recommended action, Confidence]
+  - cite case-memory precedent by id
