@@ -25,3 +25,7 @@ app/frontend/tsconfig.tsbuildinfo
 
 # Playwright
 .playwright-mcp/
+
+# Generated detection rules (written at notebook runtime)
+/detections/*.yml
+/detections/*.spl

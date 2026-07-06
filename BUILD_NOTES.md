@@ -138,6 +138,27 @@ PLAN Section 0 (rules 3 and 8).
   before any auto-execute. Action-appropriateness runs offline as a metric only.
 - 8 eval tests, 98 total green.
 
+## Stage 9: Detection export and campaign graph
+
+- **Sigma export (PLAN 11.1).** Two hero rules generated as dicts (proxy kit-path
+  contains, DNS campaign-domain set), serialized to YAML, validated through
+  pySigma `SigmaCollection`, converted to SPL via the Splunk backend. Rule IDs
+  are deterministic uuid5 so the Git-folder files are reproducible. Only a
+  passing backtest proposes a rule.
+- **Backtesting (PLAN 11.1, 11.2).** The proxy rule backtests against bronze
+  proxy logs (hits, FP rate, recall) and recalls the hero. The threshold
+  backtest simulates the routing policy at 0.85 against the labeled filler pool:
+  zero wrong auto-closes (the pool is pre-validated), real analyst-hours cleared,
+  measured escalations. The threshold is a measured choice, not a vibe.
+- **Campaign graph (PLAN 11.3).** networkx graph with edges on shared hosting
+  IP / registrant email / kit id; `greedy_modularity_communities` yields exactly
+  3 communities >= 10 nodes, labeled by majority campaign (A=FreshCart 120,
+  B=SupplierPay 60, C=CareerLure 45). Rendered with a seeded spring layout so the
+  image is deterministic. The reveal: 455 indicators collapse to 3 campaigns.
+- Generated rule files land in the `detections/` Git folder at notebook runtime
+  in-workspace; they are gitignored so local runs do not commit stray artifacts.
+- 9 detection/graph tests, 107 total green.
+
 ## Codex review (Stage 1)
 
 Ran `/codex review` on the Stage 1 diff. Three findings, all fixed:
