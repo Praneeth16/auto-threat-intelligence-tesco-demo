@@ -29,3 +29,6 @@ app/frontend/tsconfig.tsbuildinfo
 # Generated detection rules (written at notebook runtime)
 /detections/*.yml
 /detections/*.spl
+
+# Stray screenshots at repo root
+/soc-*.png
