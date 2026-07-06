@@ -39,7 +39,11 @@ Use these rules throughout the demo.
 
 Use this section as your private cheat sheet. You do not need to read it word for word, but you should be comfortable explaining each term simply.
 
+Audience caution: the real Tesco audience is a security-engineering room with deep threat-intel knowledge. Do not read the cybersecurity or threat-intelligence definitions aloud on stage. Reading back IOC, TTP, phishing, MITRE, STIX, MISP, or Sigma to this room sounds condescending, and the plan style guide in Section 14 explicitly says not to explain them. Keep those two subsections private. Spend your stage explanation time on the Databricks concepts, which are new to this audience.
+
 ### Cybersecurity Basics
+
+Presenter-only reference. Do not read aloud to the Tesco audience.
 
 **SOC**
 
@@ -90,6 +94,8 @@ A false positive is something that looks bad but is actually safe. `clubcard-sum
 A false negative is a real threat that the system misses. Act 1 shows how report extraction reduces this risk by finding `tesco-parcel-tracking[.]net`, which does not appear in structured feeds.
 
 ### Threat Intelligence Basics
+
+Presenter-only reference. Do not read aloud to the Tesco audience.
 
 **Threat Intelligence**
 
@@ -145,6 +151,8 @@ A phishing kit is reusable attacker code for fake login pages. A kit fingerprint
 
 ### Databricks And Data Platform Basics
 
+These are the concepts to explain on stage. This audience knows security but is new to Databricks. Explain each thoroughly on first mention, and end each explanation with the security job it serves.
+
 **Lakehouse**
 
 A lakehouse combines the flexibility of a data lake with the reliability and governance of a data warehouse. In this demo, security data, threat intel, agent traces, decisions, and feedback all live in one governed system.
@@ -181,6 +189,10 @@ Agent Bricks is the Databricks agent platform used here for the triage agent and
 
 MCP means Model Context Protocol. In simple terms, it is a standard way for an agent to call tools. In this demo, the agent can query telemetry, check auth anomalies, get user context, look up policy, and search case memory.
 
+**Serverless**
+
+Serverless means you do not manage or pre-size the machines. The platform starts compute when work arrives and scales it for you. In this demo, serverless notebooks, serverless SQL, the Databricks App, and Lakebase all run this way, so the SOC console can handle a room of viewers without capacity planning.
+
 **Lakebase**
 
 Lakebase is serverless Postgres inside Databricks. It holds operational state for the app, such as the triage queue, approvals, decisions, policies, and replay state. It gives the UI fast reads and writes.
@@ -200,6 +212,10 @@ Unity AI Gateway governs model traffic. It handles guardrails, budgets, usage tr
 **MLflow Tracing**
 
 MLflow tracing records what the agent did: inputs, tool calls, outputs, timing, and scores. In this demo, the trace is the proof that the agent's brief is grounded in evidence.
+
+**AI/BI**
+
+AI/BI is the Databricks analytics and dashboard layer, including AI/BI dashboards and Unity Catalog Metrics. In this demo, it is the source behind the Metrics Strip: auto-resolved counts, agreement rate, escalation rate, and gateway token and cost figures.
 
 **Genie**
 
@@ -292,6 +308,18 @@ Use this section when rehearsing. These are the five planted storylines that mak
 ### Risk Score Reference
 
 Use this when explaining why the board ranking changes.
+
+Exact starting weights, out of 100, from Section 7.2 of the plan. Keep these on one backup slide for a technical room. You do not need to read the numbers aloud, but be ready if asked.
+
+- Source confidence: 25 points, scaled by max source confidence
+- Distinct users hit: 20 points, scaled by distinct users up to 10
+- Recency: 15 points, decaying with days since first seen
+- Brand similarity: 15 points, scaled by brand similarity
+- Credential entry flag: 10 points, any POST to a kit path
+- Privileged user flag: 10 points
+- Repeat access flag: 5 points, any single user with 5 or more hits
+
+The design intent: the score is transparent and additive, so an analyst can read why a domain ranks where it does. No single component can carry a domain to the top on its own.
 
 **Source confidence**
 
@@ -786,6 +814,20 @@ When the hero reaches top rank, say:
 >
 > Seventeen employees clicked. Three submitted credentials. Priya, a privileged user, had suspicious auth activity afterward. That is why `tesco-clubcard-support[.]com` is ranked number one.
 
+### Show The Metrics Strip
+
+Point to the Metrics Strip.
+
+Say:
+
+> While the stream ran, the Metrics Strip on the side was moving too.
+>
+> It shows auto-resolved, auto-executed, and queued counts, the agent-to-human agreement rate, the escalation rate, and the tokens and cost spent through the AI Gateway.
+>
+> This matters for two reasons. First, it shows the system is clearing low-value noise on its own, not just creating more alerts. Second, the token and cost line shows AI spend is governed and measured, not a mystery bill.
+>
+> These numbers come from the AI/BI analytics layer over the same governed tables, so the operations view and the analytics view agree.
+
 ### Act 2 Summary
 
 Say:
@@ -1128,9 +1170,13 @@ Say:
 
 > The rule is not accepted just because an agent wrote it.
 >
-> It is serialized, validated through pySigma, converted to a target query, and backtested against historical bronze telemetry.
+> It is serialized, validated through pySigma, converted to a target query, and backtested against 30 days of historical bronze telemetry.
 >
 > The backtest checks hits, false-positive rate, and recall against known ground truth. Only a passing rule is proposed.
+
+Facilitator color, optional to say aloud:
+
+> Detections-as-code is the direction here. Databricks acquired the creator of SPL, the Splunk search language, through SiftD.ai. So generating a rule, validating it, backtesting it, and versioning it in Git is a natural fit.
 
 Show Git output.
 
@@ -1299,6 +1345,7 @@ Do not forget:
 - Call out counterexamples.
 - Make Priya's privileged context clear.
 - Say that high confidence alone is not enough.
+- Point at the Metrics Strip counters and gateway token and cost.
 
 ### Act 3
 

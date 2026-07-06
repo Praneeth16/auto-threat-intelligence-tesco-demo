@@ -26,12 +26,17 @@ from datagen.telemetry import build_telemetry
 
 
 def reference_ts() -> pd.Timestamp:
-    """Anchor for all offsets: the top of the current hour, tz-naive.
+    """Anchor for all offsets: midnight UTC of the current day, tz-naive.
 
-    Deterministic given a fixed clock; the demo re-anchors on load so recency
-    reads live. Tests pin a fixed value via build_world(anchor=...).
+    Floored to the day (not the hour) so the fixed clock-times the attack paths
+    plant stay correct on demo day. AP1's Priya login is T-1 22:37, AP2's login
+    is T-6 17:40: these are (day offset) + (fixed hour/minute) from the anchor.
+    A day-granular anchor keeps those instants exact no matter what hour the
+    world loads, while day-granular recency (days_since_first_seen) still reads
+    live. An hour-granular anchor would shift every fixed clock-time by the
+    current hour and could push T-0 events into the future.
     """
-    return pd.Timestamp.now("UTC").floor("h").tz_localize(None)
+    return pd.Timestamp.now("UTC").floor("D").tz_localize(None)
 
 
 @dataclass

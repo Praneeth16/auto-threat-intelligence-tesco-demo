@@ -127,8 +127,60 @@ def test_enrichment_populated_for_campaigns_only(world):
 
 
 def test_feed_overlap_present(world):
-    # ~10% of cluster IOCs planted in two feeds (dedup target).
+    # Genuine two-feed intersection is non-empty (dedup target).
     assert len(world.overlap_pairs) > 0
+
+
+def test_overlap_pairs_actually_in_two_feeds(world, tmp_path):
+    """Regression for codex P2: every overlap-ground-truth IOC really appears
+    in two written feed files, not just recorded as overlap."""
+    import json as _json
+    from datagen import feeds as feeds_mod
+
+    ref = world.reference_ts
+    misp_dir = tmp_path / "misp"
+    stix_dir = tmp_path / "stix"
+    csv_dir = tmp_path / "csv"
+    feeds_mod.write_misp_events(world.iocs, misp_dir, ref)
+    feeds_mod.write_stix_bundle(world.iocs, stix_dir, ref)
+    feeds_mod.write_csv_feed(world.iocs, csv_dir, ref)
+
+    # Collect the raw indicator strings present in each feed.
+    misp_vals = set()
+    for f in misp_dir.glob("*.json"):
+        ev = _json.loads(f.read_text())
+        for a in ev["Event"]["Attribute"]:
+            misp_vals.add(a["value"])
+    csv_vals = set()
+    import csv as _csv
+    for f in csv_dir.glob("*.csv"):
+        with f.open() as fh:
+            for row in _csv.DictReader(fh):
+                csv_vals.add(row["url"])
+    stix_vals = set()
+    bundle = _json.loads((stix_dir / "vendorx_bundle.json").read_text())
+    for obj in bundle["objects"]:
+        stix_vals.add(obj["pattern"])
+
+    # Every overlap IOC must be present in at least two of the three feeds.
+    for _, row in world.overlap_pairs.iterrows():
+        v = row["indicator_value"]
+        hits = 0
+        hits += 1 if v in misp_vals else 0
+        hits += 1 if v in csv_vals else 0
+        hits += 1 if any(v in p for p in stix_vals) else 0
+        assert hits >= 2, f"overlap IOC only in {hits} feed(s): {v}"
+
+
+def test_stix_bundle_parses(world, tmp_path):
+    """Regression for codex P2: the STIX bundle parses as valid STIX 2.1."""
+    stix2 = pytest.importorskip("stix2")
+    from datagen import feeds as feeds_mod
+    stix_dir = tmp_path / "stix"
+    p = feeds_mod.write_stix_bundle(world.iocs, stix_dir, world.reference_ts)
+    # Parsing with allow_custom=False raises on malformed IDs/patterns.
+    parsed = stix2.parse(p.read_text(), allow_custom=False)
+    assert len(parsed.objects) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +415,22 @@ def test_gt_campaigns_three(world):
     assert len(world.gt_campaigns) == 3
 
 
-def test_reference_ts_is_top_of_hour():
+def test_reference_ts_is_midnight():
+    """Anchor floors to the day so planted fixed clock-times stay exact."""
     from datagen.ground_truth import reference_ts
     ts = reference_ts()
-    assert ts.minute == 0 and ts.second == 0 and ts.microsecond == 0
+    assert ts.hour == 0 and ts.minute == 0 and ts.second == 0 and ts.microsecond == 0
+
+
+def test_priya_ro_success_holds_at_live_anchor():
+    """Regression for codex P1: Priya's T-1 22:37 login is correct at a live,
+    non-midnight-pinned anchor, not only under the fixed test anchor."""
+    from datagen.ground_truth import build_world, reference_ts
+    live = build_world()  # no anchor -> uses reference_ts()
+    ref = live.reference_ts
+    auth = live.telemetry.auth
+    priya = auth[(auth["employee_id"] == "E0001") & (auth["result"] == "success")
+                 & (auth["country"] == "RO")]
+    assert len(priya) == 1
+    expected = ref - pd.Timedelta(days=1) + pd.Timedelta(hours=22, minutes=37)
+    assert priya.iloc[0]["ts"] == expected

@@ -11,12 +11,17 @@ noise and decoys. Recorded in BUILD_NOTES.md.
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 import pandas as pd
 
 from datagen import config
 from datagen.common import rng
+
+# Fixed namespace for deterministic STIX object UUIDs (uuid5). Stable across
+# runs so the bundle is reproducible and parses as valid STIX 2.1.
+_STIX_NAMESPACE = uuid.UUID("6b1e6f8a-0d2f-5e3a-9c4b-0d2f5e3a9c4b")
 
 # Feed assignment by campaign (which structured feed carries each cluster).
 _MISP_CAMPAIGNS = {"A", "C"}  # RetailISAC-Demo MISP events
@@ -25,7 +30,10 @@ _CSV_CAMPAIGNS = {"A"}  # openphish-style CSV (URLs) + decoys
 
 
 def _reference_ts_iso(reference_ts: pd.Timestamp, offset_days: float) -> str:
-    return (reference_ts + pd.Timedelta(days=offset_days)).isoformat()
+    # STIX 2.1 requires a UTC timestamp with a trailing Z and millisecond
+    # precision; pandas .isoformat() omits both.
+    ts = (reference_ts + pd.Timedelta(days=offset_days)).floor("s")
+    return ts.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def _confidence_for(campaign_id: str, r) -> int:
@@ -110,7 +118,7 @@ def write_stix_bundle(iocs: pd.DataFrame, out_dir: Path, reference_ts: pd.Timest
         objects.append({
             "type": "indicator",
             "spec_version": "2.1",
-            "id": f"indicator--{i:08d}-0000-4000-8000-vendorxdemo0",
+            "id": f"indicator--{uuid.uuid5(_STIX_NAMESPACE, row['indicator_value'])}",
             "created": created,
             "modified": created,
             "name": f"VendorX indicator {row['indicator_value']}",
@@ -120,7 +128,8 @@ def write_stix_bundle(iocs: pd.DataFrame, out_dir: Path, reference_ts: pd.Timest
             "confidence": _confidence_for(row["campaign_id"], r),
         })
 
-    bundle = {"type": "bundle", "id": "bundle--vendorx-demo-0001", "objects": objects}
+    bundle_id = f"bundle--{uuid.uuid5(_STIX_NAMESPACE, 'vendorx-demo-bundle')}"
+    bundle = {"type": "bundle", "id": bundle_id, "objects": objects}
     p = out_dir / "vendorx_bundle.json"
     p.write_text(json.dumps(bundle, indent=2))
     return p
@@ -155,13 +164,30 @@ def write_csv_feed(iocs: pd.DataFrame, out_dir: Path, reference_ts: pd.Timestamp
     return p
 
 
-def build_overlap_pairs(iocs: pd.DataFrame) -> pd.DataFrame:
-    """Return the ~10% cluster IOCs planted in two feeds (dedup target).
+def _feed_membership(row) -> set[str]:
+    """Return the set of feed files an IOC row actually lands in.
 
-    Recorded as ground truth so the dedup step has an expected count.
+    Derived from the same assignment constants the writers use, so overlap
+    ground truth cannot drift from what write_* emit.
     """
-    r = rng("feed_overlap")
-    cluster = iocs[iocs["campaign_id"].isin(["A", "B", "C"])]
-    n = int(len(cluster) * config.FEED_OVERLAP_FRACTION)
-    picks = cluster.sample(n=n, random_state=config.SEED + 2)
-    return picks[["indicator_value", "indicator_type", "campaign_id"]].reset_index(drop=True)
+    feeds = set()
+    cid, itype = row["campaign_id"], row["indicator_type"]
+    if cid in _MISP_CAMPAIGNS:  # MISP carries all attributes of its clusters
+        feeds.add("misp")
+    if cid in _STIX_CAMPAIGNS:
+        feeds.add("stix")
+    if (cid in _CSV_CAMPAIGNS and itype == "url") or cid == "X":
+        feeds.add("csv")
+    return feeds
+
+
+def build_overlap_pairs(iocs: pd.DataFrame) -> pd.DataFrame:
+    """Return the IOCs that genuinely appear in two feed files (dedup target).
+
+    Recorded as ground truth so the dedup step has an exact expected set. Given
+    the current assignment (MISP=A/C, STIX=B, CSV=A URLs + decoys), the only
+    two-feed intersection is A URLs, present in both MISP and CSV.
+    """
+    membership = iocs.apply(_feed_membership, axis=1)
+    overlap = iocs[membership.apply(len) >= 2]
+    return overlap[["indicator_value", "indicator_type", "campaign_id"]].reset_index(drop=True)
