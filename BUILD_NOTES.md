@@ -115,6 +115,29 @@ PLAN Section 0 (rules 3 and 8).
   Approve completed the full round-trip (React -> FastAPI -> SSE queue.updated ->
   React), emptying the queue. Screenshot confirmed the plane-color system reads.
 
+## Stage 8: Feedback and eval
+
+- **Agent Bricks optimizer is behind an illustrative fallback (as the plan
+  directs).** PLAN 10.3 flags the Agent Bricks evaluation-and-optimization loop
+  as the single highest platform-API risk item. `optimize_agent.py` does NOT run
+  the optimizer live by default: it logs a hand-authored but plausible v1-vs-v2
+  comparison to MLflow, tagged `status=ILLUSTRATIVE` so the presenter must
+  caveat it. The live optimizer path is guarded behind `RUN_LIVE_OPTIMIZER=true`
+  and falls back to illustrative on any error. Act 4's stronger, lower-risk
+  sibling is the live retrieval-learning beat (below), which does not depend on
+  this.
+- **Reason-code routing (PLAN 10.1) is the learning logic.** `policy_exception`
+  routes to the allowlist and policy_store but deliberately NOT to case memory
+  (the agent reasoned correctly on the evidence it had, so it must not be taught
+  to under-escalate). `wrong_classification` enters case memory. Verified by the
+  Act 4 integration test: a policy_exception reject on clubcard-summer records an
+  allowlist entry, and the router then auto-closes clubcard-autumn citing it.
+- **Judges (PLAN 10.2): groundedness is the sole live gate.** A deterministic
+  structural check (every count the brief asserts must trace to the evidence-tool
+  output; no invented indicator) backs the MLflow judge and must pass >= 0.8
+  before any auto-execute. Action-appropriateness runs offline as a metric only.
+- 8 eval tests, 98 total green.
+
 ## Codex review (Stage 1)
 
 Ran `/codex review` on the Stage 1 diff. Three findings, all fixed:
