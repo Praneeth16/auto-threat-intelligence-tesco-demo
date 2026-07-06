@@ -1,0 +1,68 @@
+/* Design tokens for the SOC situation board.
+ *
+ * The palette encodes the three-layer architecture, not decoration: teal marks
+ * the data plane (findings), violet the AI plane (agent + briefs), coral the
+ * human plane (the approval gate). Risk climbs a warm amber-to-red ramp so the
+ * hero score reads viscerally as it rises. Base is a deep situation-room slate,
+ * chosen over the AI-default hacker black so the accents carry the signal.
+ */
+
+:root {
+  /* Base surfaces */
+  --bg: #0f1420;
+  --bg-panel: #161d2e;
+  --bg-elevated: #1e2740;
+  --border: #2a3450;
+  --border-hi: #3a4568;
+
+  /* Plane accents */
+  --data: #00b39f; /* teal, data plane, Databricks brand */
+  --ai: #8b7cf6; /* violet, AI plane */
+  --human: #ff6b5c; /* coral, human plane */
+  --data-dim: #0c6b60;
+  --ai-dim: #4b3fa0;
+  --human-dim: #a03c34;
+
+  /* Risk ramp (low to critical) */
+  --risk-low: #4fd1c5;
+  --risk-mid: #f6c65b;
+  --risk-high: #ff9d5c;
+  --risk-crit: #ff5c5c;
+
+  /* Text */
+  --text: #eef2fb;
+  --text-dim: #9aa6c4;
+  --text-faint: #5f6b8a;
+
+  /* Type */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Rhythm */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --gap: 16px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* Focus visibility floor. */
+:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+
+.mono { font-family: var(--font-mono); }
+.display { font-family: var(--font-display); }
