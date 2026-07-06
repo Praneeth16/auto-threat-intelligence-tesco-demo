@@ -1,0 +1,27 @@
+# Databricks App config (PLAN 9.5).
+# Serves the FastAPI backend which serves the built React bundle.
+command:
+  - uvicorn
+  - app.backend.main:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8000"
+
+env:
+  - name: SOC_CATALOG
+    value: serverless_lakebase_praneeth_catalog
+  - name: SOC_SCHEMA
+    value: tesco_soc_demo
+  - name: SOC_LAKEBASE_INSTANCE
+    value: tesco-soc-lakebase
+  - name: SOC_LLM_ENDPOINT
+    value: databricks-meta-llama-3-3-70b-instruct
+  # Lakebase connection (PGHOST/PGUSER injected by the Lakebase App resource).
+  # SOC_REPLAY_JOB_ID and SOC_GENIE_SPACE_ID set at deploy time.
+
+# Required resources (attached in the Databricks Apps UI):
+#   - Lakebase database instance: tesco-soc-lakebase (injects PGHOST/PGUSER/PGDATABASE)
+#   - SQL warehouse: for any warehouse-backed reads
+#   - Service principal: the App identity for system actions
+# Context-Based Ingress is optional, for external audience access (PLAN 4.1).
