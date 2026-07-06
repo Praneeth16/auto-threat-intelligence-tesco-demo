@@ -57,6 +57,38 @@ PLAN Section 0 (rules 3 and 8).
   `case_memory_v`), `seed_policy_store` seeded 7 rows at version 1, `replay_state`
   single-row control initialized. Policy matrix unit-tested (4 tests) without a DB.
 
+## Stage 4: Lakeflow pipeline + FMAPI enrichment
+
+- **Enrichment uses an explicit serving-endpoint call, NOT `ai_query`.** The
+  plan wrote enrichment as `ai_query` in a SQL pipeline. Per user direction, the
+  enrichment sentence now goes through an explicit Model Serving endpoint call
+  (`w.serving_endpoints.query`, AI Gateway routes apply) in
+  `pipelines/stream/enrichment_llm.py`. Rationale: the model call is visible,
+  governed, and swappable rather than hidden in SQL; the candidate set is tiny
+  (the scored domains) so per-row governed calls are cheap; the heavy agentic
+  reasoning is the Stage 5 Agent Bricks triage agent regardless. Report
+  extraction likewise calls the Agent Bricks extraction agent (Stage 5), with a
+  ground-truth fallback for the reference build.
+- **Enrichment endpoint default is `databricks-meta-llama-3-3-70b-instruct`.**
+  Tested live on the workspace: `gemini-3-5-flash` returns empty content over
+  the chat API, and `claude-opus-4-8` / `gpt-5-5` reject the `temperature`
+  param. The instruct model returns clean content and accepts the params.
+  `classify_domain` still sends `temperature=0` and retries without it on a
+  BadRequest, so the newer reasoning models work too. Verified end-to-end:
+  the hero domain enriches to a correct phishing classification grounded in the
+  features.
+- **Scoring is pure pandas, proven locally.** `pipelines/stream/scoring.py`
+  implements the exact PLAN 7.2 weights. The hero ranks #1 at 82.37 with every
+  component firing except repeat-access; both counterexamples score below all
+  five attack paths (careers-verify at confidence 95 lands rank 6, so
+  "confidence is not exposure" holds); report-only metric is 1 domain / 2 users.
+  11 pipeline gate tests + 3 enrichment tests, 62 total green.
+- **Brand similarity uses brand-token coverage.** rapidfuzz ratio saturated at
+  100 for anything containing "tesco". The similarity feature now scores exact
+  brand-token coverage (one token = 75 base, +15 per extra token), so the hero
+  (`tesco` + `clubcard`) clears the >=85 threshold while single-token lookalikes
+  sit at 75 and genuinely unrelated domains stay below 30.
+
 ## Codex review (Stage 1)
 
 Ran `/codex review` on the Stage 1 diff. Three findings, all fixed:

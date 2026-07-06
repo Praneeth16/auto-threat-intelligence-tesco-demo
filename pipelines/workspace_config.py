@@ -26,9 +26,13 @@ LAKEBASE_INSTANCE = os.environ.get("SOC_LAKEBASE_INSTANCE", "tesco-soc-lakebase"
 LAKEBASE_DATABASE = os.environ.get("SOC_LAKEBASE_DATABASE", "databricks_postgres")
 LAKEBASE_SCHEMA = os.environ.get("SOC_LAKEBASE_SCHEMA", "public")
 
-# FMAPI chat endpoint for ai_query enrichment (Stage 4). A config cell in the
-# pipeline picks a fallback if this endpoint is absent in the workspace.
-LLM_ENDPOINT = os.environ.get("SOC_LLM_ENDPOINT", "databricks-claude-sonnet-4-5")
+# FMAPI serving endpoint for enrichment (Stage 4), called explicitly (not
+# ai_query). Default is a fast instruct model that returns chat content cleanly;
+# the demo can flip it live to a stronger model to show the cost/quality
+# tradeoff through AI Gateway. (gemini-3-5-flash returns empty content over the
+# chat API and the newest reasoning models reject the temperature param, so an
+# instruct model is the reliable default.)
+LLM_ENDPOINT = os.environ.get("SOC_LLM_ENDPOINT", "databricks-meta-llama-3-3-70b-instruct")
 
 
 def fq(table: str) -> str:
