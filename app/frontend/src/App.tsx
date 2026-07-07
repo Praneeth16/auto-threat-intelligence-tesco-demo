@@ -5,10 +5,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DirectorConsole } from "./views/DirectorConsole";
-import { TriageBoard } from "./views/TriageBoard";
-import { ApprovalQueue } from "./views/ApprovalQueue";
-import { MetricsStrip } from "./views/MetricsStrip";
-import { StageFlow } from "./components/StageFlow";
+import { LiveTriage } from "./views/LiveTriage";
+import { ExecutiveOverview } from "./views/ExecutiveOverview";
+import { FeedbackLoop } from "./views/FeedbackLoop";
+import { NavBar, type Tab } from "./components/NavBar";
 import { useSSE } from "./sse";
 import { api } from "./lib";
 
@@ -89,6 +89,8 @@ export function App() {
     "queue.updated": () => setQueueBump((n) => n + 1),
   });
 
+  const [activeTab, setActiveTab] = useState<Tab>("live");
+
   const findingList = Object.values(findings);
   const agentList = Object.values(agents);
   // The hero agent is analyzing when it has started but not completed and no
@@ -97,29 +99,26 @@ export function App() {
 
   return (
     <div style={{
-      display: "grid",
-      gridTemplateRows: "auto auto 1fr auto",
-      gridTemplateColumns: "1fr 380px",
-      gridTemplateAreas: `"director director" "stages stages" "board queue" "metrics metrics"`,
+      display: "flex", flexDirection: "column",
       gap: "var(--gap)", padding: "var(--gap)", height: "100vh",
     }}>
-      <div style={{ gridArea: "director" }}>
-        <DirectorConsole tick={tick} connected={connected} />
-      </div>
-      <div style={{ gridArea: "stages" }}>
-        <StageFlow
-          tick={tick} findings={findingList} agents={agentList}
-          decision={decision} queuePending={queuePending} metrics={metrics}
-        />
-      </div>
-      <div style={{ gridArea: "board", minHeight: 0 }}>
-        <TriageBoard findings={findingList} agents={agentList} />
-      </div>
-      <div style={{ gridArea: "queue", minHeight: 0 }}>
-        <ApprovalQueue bump={queueBump} analyzing={analyzing} onPending={setQueuePending} />
-      </div>
-      <div style={{ gridArea: "metrics" }}>
-        <MetricsStrip metrics={metrics} />
+      {/* Director Console + nav stay global: the run is the demo's clock and
+          the presenter drives it from any tab. */}
+      <DirectorConsole tick={tick} connected={connected} />
+      <NavBar active={activeTab} onSelect={setActiveTab} />
+
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {activeTab === "live" && (
+          <LiveTriage
+            findings={findingList} agents={agentList} decision={decision}
+            metrics={metrics} tick={tick} queueBump={queueBump}
+            queuePending={queuePending} analyzing={analyzing} onPending={setQueuePending}
+          />
+        )}
+        {activeTab === "executive" && (
+          <ExecutiveOverview findings={findingList} metrics={metrics} tick={tick} />
+        )}
+        {activeTab === "feedback" && <FeedbackLoop />}
       </div>
     </div>
   );
