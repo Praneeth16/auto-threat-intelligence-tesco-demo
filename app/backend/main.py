@@ -21,10 +21,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from app.backend import events, replay_control
+from app.backend import events, genie, replay_control
 from app.backend.auth import resolver_identity
 from app.backend.simulator import simulator
 from app.backend.sse import broker
+from agents.eval.reason_codes import REASON_CODES, route_feedback
+from agents.tools.search_case_memory import finding_signature
 
 
 # ---- request models --------------------------------------------------------
@@ -44,6 +46,20 @@ class ReplaySeek(BaseModel):
 class Resolution(BaseModel):
     reason_code: str | None = None
     notes: str | None = None
+
+
+class GenieAsk(BaseModel):
+    question: str
+
+
+class SiblingSim(BaseModel):
+    campaign_id: str | None = None
+    recommended_action: str
+    precedent_reason_code: str
+    # The precedent defaults to the same campaign+action (the clubcard family
+    # Act-4 beat); overridable to demonstrate a non-matching sibling.
+    precedent_campaign_id: str | None = None
+    precedent_action: str | None = None
 
 
 def _default_repo():
@@ -90,6 +106,15 @@ def create_app(repo=None) -> FastAPI:
     @app.post("/api/replay/seek")
     async def replay_seek(body: ReplaySeek):
         return replay_control.seek(app.state.repo, body.to_ts)
+
+    @app.post("/api/replay/jump")
+    async def replay_jump():
+        # Director beat control: fast-forward the running simulator to the
+        # decision point (hero peaks, agent fires). Mirrors sim_clock for the
+        # record, then drives the actual in-app stream.
+        replay_control.seek(app.state.repo, "T-1")
+        await simulator.jump_to_decision()
+        return {"running": simulator.running, "jumped_to": "decision"}
 
     # ---- findings / queue --------------------------------------------------
     @app.get("/api/findings")
@@ -148,6 +173,48 @@ def create_app(repo=None) -> FastAPI:
     async def traces(finding_id: str):
         # The full MLflow trace is fetched by finding; stubbed shape here.
         return {"finding_id": finding_id, "steps": []}
+
+    # ---- executive: Genie Q&A ----------------------------------------------
+    @app.post("/api/genie/ask")
+    async def genie_ask(body: GenieAsk):
+        # Live Genie in-workspace, deterministic scripted answer offline/on
+        # failure (genie.ask never raises).
+        return await genie.ask(body.question)
+
+    # ---- feedback loop: routing + sibling auto-close -----------------------
+    @app.get("/api/feedback/routing/{reason_code}")
+    async def feedback_routing(reason_code: str):
+        # Reflect the real reason_codes routing table so the UI never drifts.
+        try:
+            routing = route_feedback(reason_code)
+        except ValueError:
+            return JSONResponse(
+                {"detail": f"unknown reason code: {reason_code}",
+                 "valid": REASON_CODES},
+                status_code=422,
+            )
+        return {
+            "reason_code": routing.reason_code,
+            "destinations": [d.value for d in routing.destinations],
+            "enters_case_memory": routing.enters_case_memory,
+        }
+
+    @app.post("/api/feedback/simulate-sibling")
+    async def simulate_sibling(body: SiblingSim):
+        # Show the post-feedback behavior: a later sibling of the same signature
+        # matches the recorded precedent and auto-resolves, no human needed.
+        precedent_campaign = body.precedent_campaign_id or body.campaign_id
+        precedent_action = body.precedent_action or body.recommended_action
+        precedent_sig = finding_signature("precedent", precedent_campaign, precedent_action)
+        sibling_sig = finding_signature("sibling", body.campaign_id, body.recommended_action)
+        matches = precedent_sig == sibling_sig
+        return {
+            "signature": sibling_sig,
+            "precedent_signature": precedent_sig,
+            "precedent_reason_code": body.precedent_reason_code,
+            "matches": matches,
+            "would_auto_resolve": matches,
+        }
 
     # ---- SSE stream --------------------------------------------------------
     @app.get("/api/stream")

@@ -13,7 +13,7 @@ pysigma==0.11.19
 pysigma-backend-splunk==1.1.0
 
 # Databricks + ML
-databricks-sdk==0.38.0
+databricks-sdk>=0.120.0
 mlflow==3.1.1
 
 # Backend

@@ -5,9 +5,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DirectorConsole } from "./views/DirectorConsole";
-import { TriageBoard } from "./views/TriageBoard";
-import { ApprovalQueue } from "./views/ApprovalQueue";
-import { MetricsStrip } from "./views/MetricsStrip";
+import { LiveTriage } from "./views/LiveTriage";
+import { ExecutiveOverview } from "./views/ExecutiveOverview";
+import { FeedbackLoop } from "./views/FeedbackLoop";
+import { NavBar, type Tab } from "./components/NavBar";
 import { useSSE } from "./sse";
 import { api } from "./lib";
 
@@ -31,12 +32,22 @@ export interface AgentActivity {
   done: boolean;
 }
 
+export interface Decision {
+  decision_id: number;
+  finding_id: string;
+  route: string;
+  tier: number;
+  action: string;
+}
+
 export function App() {
   const [findings, setFindings] = useState<Record<string, Finding>>({});
   const [agents, setAgents] = useState<Record<string, AgentActivity>>({});
   const [tick, setTick] = useState<any>(null);
   const [metrics, setMetrics] = useState<any>(null);
+  const [decision, setDecision] = useState<Decision | null>(null);
   const [queueBump, setQueueBump] = useState(0);
+  const [queuePending, setQueuePending] = useState(0);
 
   const onFinding = useCallback((d: Finding) => {
     setFindings((prev) => ({ ...prev, [d.finding_id]: { ...prev[d.finding_id], ...d } }));
@@ -60,6 +71,7 @@ export function App() {
     "replay.tick": setTick,
     "finding.updated": onFinding,
     "metrics.updated": setMetrics,
+    "decision.routed": (d: Decision) => setDecision(d),
     "agent.started": (d) =>
       setAgents((p) => ({ ...p, [d.agent_run_id]: {
         agent_run_id: d.agent_run_id, finding_id: d.finding_id, steps: [], done: false } })),
@@ -77,25 +89,36 @@ export function App() {
     "queue.updated": () => setQueueBump((n) => n + 1),
   });
 
+  const [activeTab, setActiveTab] = useState<Tab>("live");
+
+  const findingList = Object.values(findings);
+  const agentList = Object.values(agents);
+  // The hero agent is analyzing when it has started but not completed and no
+  // item is yet awaiting approval — the signal the queue placeholder shows.
+  const analyzing = agentList.some((a) => !a.done) && queuePending === 0;
+
   return (
     <div style={{
-      display: "grid",
-      gridTemplateRows: "auto 1fr auto",
-      gridTemplateColumns: "1fr 380px",
-      gridTemplateAreas: `"director director" "board queue" "metrics metrics"`,
+      display: "flex", flexDirection: "column",
       gap: "var(--gap)", padding: "var(--gap)", height: "100vh",
     }}>
-      <div style={{ gridArea: "director" }}>
-        <DirectorConsole tick={tick} connected={connected} />
-      </div>
-      <div style={{ gridArea: "board", minHeight: 0 }}>
-        <TriageBoard findings={Object.values(findings)} agents={Object.values(agents)} />
-      </div>
-      <div style={{ gridArea: "queue", minHeight: 0 }}>
-        <ApprovalQueue bump={queueBump} />
-      </div>
-      <div style={{ gridArea: "metrics" }}>
-        <MetricsStrip metrics={metrics} />
+      {/* Director Console + nav stay global: the run is the demo's clock and
+          the presenter drives it from any tab. */}
+      <DirectorConsole tick={tick} connected={connected} />
+      <NavBar active={activeTab} onSelect={setActiveTab} />
+
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {activeTab === "live" && (
+          <LiveTriage
+            findings={findingList} agents={agentList} decision={decision}
+            metrics={metrics} tick={tick} queueBump={queueBump}
+            queuePending={queuePending} analyzing={analyzing} onPending={setQueuePending}
+          />
+        )}
+        {activeTab === "executive" && (
+          <ExecutiveOverview findings={findingList} metrics={metrics} tick={tick} />
+        )}
+        {activeTab === "feedback" && <FeedbackLoop />}
       </div>
     </div>
   );

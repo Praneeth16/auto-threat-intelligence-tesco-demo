@@ -94,6 +94,9 @@ class ReplaySimulator:
         self.queued = 0
         self.tokens = 0
         self.injected: set[str] = set()
+        # When set, the run loop skips its per-tick sleep until the tick counter
+        # reaches this target, fast-forwarding the storyline to a beat.
+        self._fast_forward_to = 0
 
     @property
     def running(self) -> bool:
@@ -122,6 +125,20 @@ class ReplaySimulator:
             except (asyncio.CancelledError, Exception):
                 pass
         self._task = None
+
+    async def jump_to_decision(self, speed: float = 720.0) -> None:
+        """Director beat control: fast-forward the storyline to the decision
+        point where the hero peaks and the agent fires.
+
+        If a run is active, arm the fast-forward so the loop stops sleeping and
+        races to AGENT_START_TICK; if none is active, start one first. Findings
+        emitted before the target still stream, so the board is never left empty.
+        """
+        async with self._lifecycle_lock:
+            if not (self._task and not self._task.done()):
+                self.reset_state()
+                self._task = asyncio.ensure_future(self._run(speed))
+            self._fast_forward_to = AGENT_START_TICK
 
     def inject(self, path_id: str) -> None:
         """Director override: pull a path to the front so it appears next tick.
@@ -181,7 +198,13 @@ class ReplaySimulator:
                     self.queued = 1
 
                 await self._emit_metrics()
-                await asyncio.sleep(gap)
+                # While fast-forwarding to an armed beat, skip the wall gap so
+                # the storyline races to the target tick; yield only.
+                if t < self._fast_forward_to:
+                    await asyncio.sleep(0)
+                else:
+                    self._fast_forward_to = 0
+                    await asyncio.sleep(gap)
 
             # Final tick: mark running false.
             await broker.publish(events.REPLAY_TICK,

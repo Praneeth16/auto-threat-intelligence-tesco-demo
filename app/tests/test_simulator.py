@@ -124,6 +124,70 @@ def test_concurrent_starts_leave_one_task():
     assert running_runs <= 1  # only the tracked task is alive
 
 
+def test_jump_to_decision_reaches_agent_beat():
+    """Jump to decision must fast-forward a fresh sim to the agent-fires beat:
+    the hero agent completes and the tier-2 action queues, and findings are not
+    left empty on the board."""
+    async def scenario():
+        broker = EventBroker(buffer_size=4096)
+        orig_broker = sim_mod.broker
+        sim_mod.broker = broker
+        orig_total, orig_agent = sim_mod.TOTAL_TICKS, sim_mod.AGENT_START_TICK
+        sim_mod.TOTAL_TICKS = 22
+        sim_mod.AGENT_START_TICK = 18
+        sim = sim_mod.ReplaySimulator()
+
+        seen: dict[str, int] = {}
+        findings: dict[str, float] = {}
+
+        async def collect():
+            async for p in broker.subscribe():
+                seen[p["event"]] = seen.get(p["event"], 0) + 1
+                if p["event"] == "finding.updated":
+                    data = json.loads(p["data"])
+                    findings[data["domain"]] = data["risk_score"]
+
+        task = asyncio.ensure_future(collect())
+        await asyncio.sleep(0)
+        await sim.jump_to_decision(1440)
+        # Fast-forward is near-instant to the agent beat; allow the agent tool
+        # loop and completion to publish.
+        await asyncio.sleep(8)
+        await sim.stop()
+        task.cancel()
+        sim_mod.broker = orig_broker
+        sim_mod.TOTAL_TICKS, sim_mod.AGENT_START_TICK = orig_total, orig_agent
+        return seen, findings
+
+    seen, findings = asyncio.run(scenario())
+    assert seen.get("agent.completed", 0) > 0, "agent did not fire after jump"
+    assert seen.get("queue.updated", 0) > 0, "tier-2 action did not queue after jump"
+    assert "tesco-clubcard-support.com" in findings, "board left empty after jump"
+
+
+def test_jump_on_running_sim_leaves_one_task():
+    """Jumping on an already-running sim must not leak orphan replay tasks."""
+    async def scenario():
+        broker = EventBrokerStub()
+        orig = sim_mod.broker
+        sim_mod.broker = broker
+        sim = sim_mod.ReplaySimulator()
+        try:
+            await sim.start(1440)
+            await asyncio.sleep(0.1)
+            await sim.jump_to_decision(1440)
+            await asyncio.sleep(0.1)
+            live = [t for t in [sim._task] if t and not t.done()]
+            await sim.stop()
+            return len(live)
+        finally:
+            await sim.stop()
+            sim_mod.broker = orig
+
+    live = asyncio.run(scenario())
+    assert live == 1
+
+
 class EventBrokerStub:
     """Minimal broker that drops events, for the race test."""
 
