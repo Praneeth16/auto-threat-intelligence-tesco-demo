@@ -43,10 +43,14 @@ def mint_credential_token() -> str:
     from databricks.sdk import WorkspaceClient
 
     w = WorkspaceClient()
-    cred = w.database.generate_database_credential(
-        request_id=str(uuid.uuid4()),
-        instance_names=[_endpoint_name()],
-    )
+    if hasattr(w, "database"):
+        cred = w.database.generate_database_credential(
+            request_id=str(uuid.uuid4()),
+            instance_names=[_endpoint_name()],
+        )
+        return cred.token
+    # Older runtime SDK: fall back to the postgres surface.
+    cred = w.postgres.generate_database_credential(endpoint=_endpoint_name())
     return cred.token
 
 
