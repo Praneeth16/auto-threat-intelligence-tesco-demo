@@ -77,7 +77,8 @@ def queue_updated(queue_id, status) -> dict:
 
 
 def metrics_updated(auto_resolved, auto_executed, queued, agreement_rate,
-                    escalation_rate, tokens) -> dict:
+                    escalation_rate, tokens, events_total=None, anomalies=None) -> dict:
     return {"auto_resolved": auto_resolved, "auto_executed": auto_executed,
             "queued": queued, "agreement_rate": agreement_rate,
-            "escalation_rate": escalation_rate, "tokens": tokens}
+            "escalation_rate": escalation_rate, "tokens": tokens,
+            "events_total": events_total, "anomalies": anomalies}
