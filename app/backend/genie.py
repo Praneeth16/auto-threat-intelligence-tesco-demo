@@ -12,7 +12,9 @@ The response shape is identical on both paths: {answer, source, sql?, rows?}.
 
 from __future__ import annotations
 
+import asyncio
 import os
+from datetime import timedelta
 
 # Scripted answers over the FreshCart PhishOps storyline (matches datagen ground
 # truth). Keyed by substrings we look for in a lowercased question. First match
@@ -71,12 +73,14 @@ def _live_answer(question: str, space_id: str) -> dict:
     w = WorkspaceClient()
     genie = w.genie
     # start_conversation_and_wait blocks until the message completes; it returns
-    # the final GenieMessage with any text attachment / query result.
-    msg = genie.start_conversation_and_wait(space_id=space_id, content=question)
+    # the final GenieMessage with any text attachment / query result. Bound the
+    # wait so a slow/hung space can't stall the caller for the 20-min default.
+    msg = genie.start_conversation_and_wait(
+        space_id=space_id, content=question, timeout=timedelta(seconds=30),
+    )
 
     answer_parts: list[str] = []
     sql: str | None = None
-    rows: list | None = None
     for att in (getattr(msg, "attachments", None) or []):
         text = getattr(att, "text", None)
         if text and getattr(text, "content", None):
@@ -91,8 +95,6 @@ def _live_answer(question: str, space_id: str) -> dict:
     out = {"answer": answer, "source": "genie"}
     if sql:
         out["sql"] = sql
-    if rows:
-        out["rows"] = rows
     return out
 
 
@@ -102,7 +104,10 @@ async def ask(question: str) -> dict:
     space_id = os.environ.get("SOC_GENIE_SPACE_ID")
     if space_id:
         try:
-            return _live_answer(question, space_id)
+            # _live_answer is a synchronous blocking SDK call; run it off the
+            # event loop so the SSE stream and simulator keep ticking while a
+            # question is in flight.
+            return await asyncio.to_thread(_live_answer, question, space_id)
         except Exception:
             # Degrade to the deterministic answer rather than surface a 500.
             fallback = _scripted_answer(question)

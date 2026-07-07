@@ -32,7 +32,10 @@ interface Props {
 function deriveStages(p: Props): { name: string; status: Status }[] {
   const running = p.tick?.running === true;
   const started = p.tick != null && (p.tick.running !== undefined);
-  const completed = p.tick != null && p.tick.running === false && p.tick.sim_clock != null;
+  // The run completes only at the final "T-0" tick. A mid-run Pause also
+  // publishes running=false but with a non-zero clock (T-1..T-3), so keying on
+  // sim_clock alone would falsely mark the pipeline done on pause.
+  const completed = p.tick != null && p.tick.running === false && p.tick.sim_clock === "T-0";
 
   const maxScore = p.findings.reduce((m, f) => Math.max(m, f.risk_score), 0);
   const heroAgent = p.agents.find((a) => a.finding_id.includes("clubcard-support") || a.finding_id === HERO) || p.agents[0];
