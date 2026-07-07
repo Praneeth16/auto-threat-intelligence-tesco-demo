@@ -84,7 +84,48 @@ def test_agent_runs_full_tool_loop(result):
     assert steps == sim_mod.AGENT_TOOLS
 
 
-def test_inject_override_recorded():
+def test_inject_override_resolves_path_to_domain():
+    """Codex P2: inject(AP3) must store the scripted domain the loop tests, not
+    the raw path id (which never matched f.domain)."""
     sim = sim_mod.ReplaySimulator()
     sim.inject("AP3")
-    assert "AP3" in sim.injected
+    assert "tesco-parcel-tracking.net" in sim.injected
+    # A raw domain also works (passthrough for unknown ids).
+    sim.inject("tesco-rewards-login.com")
+    assert "tesco-rewards-login.com" in sim.injected
+
+
+def test_concurrent_starts_leave_one_task():
+    """Codex P1: racing start() calls must not leak orphan replay tasks."""
+    async def scenario():
+        broker = EventBrokerStub()
+        orig = sim_mod.broker
+        sim_mod.broker = broker
+        sim = sim_mod.ReplaySimulator()
+        try:
+            # Fire several starts concurrently.
+            await asyncio.gather(*[sim.start(1440) for _ in range(5)])
+            await asyncio.sleep(0.2)
+            live = [t for t in [sim._task] if t and not t.done()]
+            # Exactly one tracked task, and no untracked tasks still running the
+            # simulator's _run (checked via the all-tasks scan below).
+            running_runs = [
+                t for t in asyncio.all_tasks()
+                if t is not asyncio.current_task() and "_run" in repr(t.get_coro()) and not t.done()
+            ]
+            await sim.stop()
+            return len(live), len(running_runs)
+        finally:
+            await sim.stop()
+            sim_mod.broker = orig
+
+    live, running_runs = asyncio.run(scenario())
+    assert live == 1
+    assert running_runs <= 1  # only the tracked task is alive
+
+
+class EventBrokerStub:
+    """Minimal broker that drops events, for the race test."""
+
+    async def publish(self, event, data):
+        return None
