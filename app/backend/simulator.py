@@ -24,6 +24,7 @@ from app.backend.sse import broker
 # datagen scoring output (hero 82, then the AP tail).
 @dataclass
 class ScriptedFinding:
+    path_id: str  # AP1..AP5, the id the Director "override" buttons send
     finding_id: str
     domain: str
     final_score: float
@@ -36,18 +37,21 @@ class ScriptedFinding:
 SPINE = [
     # The hero appears first and climbs the longest, so the room watches its
     # score rise. Tail findings enter shortly after so the board fills early.
-    ScriptedFinding("F-tesco-clubcard-support.com", "tesco-clubcard-support.com",
+    ScriptedFinding("AP1", "F-tesco-clubcard-support.com", "tesco-clubcard-support.com",
                     82.0, 2, 16, fires_agent=True,
                     components={"brand_similarity": 90, "users": 17, "credential_entry": 1, "privileged": 1}),
-    ScriptedFinding("F-tescobank-secure-auth.com", "tescobank-secure-auth.com",
+    ScriptedFinding("AP4", "F-tescobank-secure-auth.com", "tescobank-secure-auth.com",
                     54.0, 4, 8, components={"brand_similarity": 75, "users": 4, "recency": 1}),
-    ScriptedFinding("F-tesco-supplier-billing.com", "tesco-supplier-billing.com",
+    ScriptedFinding("AP2", "F-tesco-supplier-billing.com", "tesco-supplier-billing.com",
                     46.0, 5, 8, components={"brand_similarity": 75, "users": 1, "credential_entry": 1}),
-    ScriptedFinding("F-tesco-rewards-login.com", "tesco-rewards-login.com",
+    ScriptedFinding("AP5", "F-tesco-rewards-login.com", "tesco-rewards-login.com",
                     49.0, 6, 7, components={"brand_similarity": 75, "users": 1, "repeat_access": 1}),
-    ScriptedFinding("F-tesco-parcel-tracking.net", "tesco-parcel-tracking.net",
+    ScriptedFinding("AP3", "F-tesco-parcel-tracking.net", "tesco-parcel-tracking.net",
                     48.0, 8, 6, components={"brand_similarity": 75, "users": 2, "report_only": 1}),
 ]
+
+# Resolve a Director override id (AP1..AP5) to the scripted domain it fronts.
+PATH_TO_DOMAIN = {f.path_id: f.domain for f in SPINE}
 
 # The hero agent's tool loop, shown as live step markers.
 AGENT_TOOLS = [
@@ -73,6 +77,9 @@ class ReplaySimulator:
 
     def __init__(self):
         self._task: asyncio.Task | None = None
+        # Serializes stop/reset/create so racing start() calls cannot leave an
+        # orphan _run task publishing SSE and mutating counters.
+        self._lifecycle_lock = asyncio.Lock()
         self.reset_state()
 
     def reset_state(self) -> None:
@@ -93,11 +100,21 @@ class ReplaySimulator:
         return self._task is not None and not self._task.done()
 
     async def start(self, speed: float) -> None:
-        await self.stop()
-        self.reset_state()
-        self._task = asyncio.ensure_future(self._run(speed))
+        # The whole cancel-old, reset, create-new sequence runs under the lock,
+        # so two concurrent starts cannot both create a task; the second waits
+        # for the first to finish creating, then cancels and replaces it. No
+        # orphan can survive with _task pointing elsewhere.
+        async with self._lifecycle_lock:
+            await self._stop_locked()
+            self.reset_state()
+            self._task = asyncio.ensure_future(self._run(speed))
 
     async def stop(self) -> None:
+        async with self._lifecycle_lock:
+            await self._stop_locked()
+
+    async def _stop_locked(self) -> None:
+        """Cancel and await the current task. Caller must hold the lock."""
         if self._task and not self._task.done():
             self._task.cancel()
             try:
@@ -107,8 +124,12 @@ class ReplaySimulator:
         self._task = None
 
     def inject(self, path_id: str) -> None:
-        """Director override: pull a path to the front so it appears next tick."""
-        self.injected.add(path_id)
+        """Director override: pull a path to the front so it appears next tick.
+
+        Resolves the path id (AP1..AP5) to the scripted domain the run loop
+        tests against; unknown ids are stored as-is so a raw domain also works.
+        """
+        self.injected.add(PATH_TO_DOMAIN.get(path_id, path_id))
 
     async def _run(self, speed: float) -> None:
         # Cadence: faster speed -> shorter wall gap, bounded so the show lands in

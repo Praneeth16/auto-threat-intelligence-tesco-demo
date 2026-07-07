@@ -52,8 +52,10 @@ def test_replay_pause(client):
 
 
 def test_replay_inject_tracks_path(client):
+    # inject resolves the path id to its scripted domain (codex P2 fix), so the
+    # override actually matches what the run loop tests against.
     r = client.post("/api/replay/inject", json={"path_id": "AP1"})
-    assert "AP1" in r.json()["injected_paths"]
+    assert "tesco-clubcard-support.com" in r.json()["injected_paths"]
 
 
 def test_findings_and_queue_endpoints(client):
