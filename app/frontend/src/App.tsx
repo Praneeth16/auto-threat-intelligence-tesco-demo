@@ -3,12 +3,13 @@
 // Triage Board (center, the Act 2 centerpiece), Approval Queue (right, the
 // human gate), Metrics Strip (bottom).
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DirectorConsole } from "./views/DirectorConsole";
 import { TriageBoard } from "./views/TriageBoard";
 import { ApprovalQueue } from "./views/ApprovalQueue";
 import { MetricsStrip } from "./views/MetricsStrip";
 import { useSSE } from "./sse";
+import { api } from "./lib";
 
 export interface Finding {
   finding_id: string;
@@ -39,6 +40,20 @@ export function App() {
 
   const onFinding = useCallback((d: Finding) => {
     setFindings((prev) => ({ ...prev, [d.finding_id]: { ...prev[d.finding_id], ...d } }));
+  }, []);
+
+  // Load any findings already in Lakebase on mount, so the board is not empty
+  // before the stream starts.
+  useEffect(() => {
+    api.findings()
+      .then((rows: Finding[]) => {
+        setFindings((prev) => {
+          const next = { ...prev };
+          for (const f of rows) next[f.finding_id] = { ...next[f.finding_id], ...f };
+          return next;
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const { connected } = useSSE({

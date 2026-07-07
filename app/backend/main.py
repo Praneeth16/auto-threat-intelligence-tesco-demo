@@ -23,6 +23,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.backend import events, replay_control
 from app.backend.auth import resolver_identity
+from app.backend.simulator import simulator
 from app.backend.sse import broker
 
 
@@ -64,22 +65,27 @@ def create_app(repo=None) -> FastAPI:
     # ---- replay control ----------------------------------------------------
     @app.post("/api/replay/start")
     async def replay_start(body: ReplayStart):
-        state = replay_control.start(app.state.repo, body.scenario, body.speed)
-        await broker.publish(events.REPLAY_TICK,
-                             events.replay_tick(state.get("sim_clock"), body.speed, True))
-        return state
+        # Drive the in-app simulator so Run actually streams the storyline over
+        # SSE. Also mirror control state to Lakebase for the record.
+        replay_control.start(app.state.repo, body.scenario, body.speed)
+        await simulator.start(body.speed)
+        return {"running": True, "speed": body.speed}
 
     @app.post("/api/replay/inject")
     async def replay_inject(body: ReplayInject):
-        state = replay_control.inject(app.state.repo, body.path_id)
-        return state
+        # Director override: pull a path to the front. If the stream is not
+        # running, start it first (start resets state) THEN mark the override,
+        # so the injected path is honored on the next tick.
+        if not simulator.running:
+            await simulator.start(720.0)
+        simulator.inject(body.path_id)
+        return {"injected_paths": sorted(simulator.injected), "running": simulator.running}
 
     @app.post("/api/replay/pause")
     async def replay_pause():
-        state = replay_control.pause(app.state.repo)
-        await broker.publish(events.REPLAY_TICK,
-                             events.replay_tick(state.get("sim_clock"), state.get("speed"), False))
-        return state
+        await simulator.stop()
+        replay_control.pause(app.state.repo)
+        return {"running": False}
 
     @app.post("/api/replay/seek")
     async def replay_seek(body: ReplaySeek):

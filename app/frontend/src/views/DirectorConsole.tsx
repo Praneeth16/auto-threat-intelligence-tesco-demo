@@ -12,8 +12,14 @@ export function DirectorConsole({ tick, connected }: { tick: any; connected: boo
   const [speed, setSpeed] = useState(720);
   const [running, setRunning] = useState(false);
 
-  const run = async () => { await api.replayStart("full", speed); setRunning(true); };
-  const pause = async () => { await api.replayPause(); setRunning(false); };
+  // The stream is the source of truth for running state: each replay.tick
+  // carries it, so Run/Pause reflect what the backend simulator is actually
+  // doing (and the button re-enables when the run completes on its own).
+  const tickRunning = tick?.running;
+  const effectiveRunning = tickRunning !== undefined ? tickRunning : running;
+
+  const run = async () => { setRunning(true); await api.replayStart("full", speed); };
+  const pause = async () => { setRunning(false); await api.replayPause(); };
 
   const simClock = tick?.sim_clock && tick.sim_clock !== "None" ? tick.sim_clock : "not started";
 
@@ -33,8 +39,8 @@ export function DirectorConsole({ tick, connected }: { tick: any; connected: boo
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Button plane="data" onClick={run} disabled={running}>Run</Button>
-        <Button plane="human" onClick={pause} disabled={!running}>Pause</Button>
+        <Button plane="data" onClick={run} disabled={effectiveRunning}>Run</Button>
+        <Button plane="human" onClick={pause} disabled={!effectiveRunning}>Pause</Button>
         <label className="mono" style={{ fontSize: 12, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6 }}>
           speed
           <input type="range" min={60} max={1440} step={60} value={speed}
@@ -44,7 +50,7 @@ export function DirectorConsole({ tick, connected }: { tick: any; connected: boo
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span className="mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>inject</span>
+        <span className="mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>override</span>
         {PATHS.map((p) => (
           <Button key={p} plane="ai" onClick={() => api.replayInject(p)}>{p}</Button>
         ))}

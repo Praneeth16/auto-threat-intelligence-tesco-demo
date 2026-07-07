@@ -12,6 +12,8 @@ interface Metrics {
   agreement_rate?: number;
   escalation_rate?: number;
   tokens?: number;
+  events_total?: number;
+  anomalies?: number;
 }
 
 function Stat({ label, value, plane }: { label: string; value: string; plane: string }) {
@@ -42,6 +44,8 @@ export function MetricsStrip({ metrics }: { metrics: Metrics | null }) {
       borderRadius: "var(--r-lg)", padding: "14px 22px",
       display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap",
     }}>
+      <Stat label="events" value={m.events_total ? m.events_total.toLocaleString() : "0"} plane="data" />
+      <Stat label="anomalies" value={String(m.anomalies ?? 0)} plane="human" />
       <Stat label="auto-resolved" value={String(m.auto_resolved ?? 0)} plane="data" />
       <Stat label="auto-executed" value={String(m.auto_executed ?? 0)} plane="data" />
       <Stat label="queued" value={String(m.queued ?? 0)} plane="human" />

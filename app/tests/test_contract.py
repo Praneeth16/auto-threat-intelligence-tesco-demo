@@ -25,8 +25,17 @@ from app.backend.sse import EventBroker
 
 @pytest.fixture
 def client():
+    from app.backend.simulator import simulator
     app = create_app(repo=FakeRepository())
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
+    # Stop any simulator task the test started so it does not leak across tests.
+    import asyncio
+    if simulator.running:
+        try:
+            asyncio.get_event_loop().run_until_complete(simulator.stop())
+        except Exception:
+            simulator._task = None
 
 
 def test_replay_start_advances_state(client):
