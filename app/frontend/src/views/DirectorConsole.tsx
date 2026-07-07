@@ -1,6 +1,7 @@
-// Director Console (PLAN 9.1 view 1): Run, Pause, Speed, Inject buttons (one
-// per attack path + the clubcard-autumn sibling), plus the Section 12.6
-// fallback controls. Shows the sim clock and running state.
+// Director Console (PLAN 9.1 view 1): Run, Pause, Speed, force-path buttons (one
+// per attack path + the clubcard-autumn sibling), and a Jump-to-decision beat
+// control that fast-forwards the sim to the agent-fires point. Shows the sim
+// clock and running state.
 
 import { useState } from "react";
 import { api } from "../lib";
@@ -50,7 +51,7 @@ export function DirectorConsole({ tick, connected }: { tick: any; connected: boo
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span className="mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>override</span>
+        <span className="mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>force path</span>
         {PATHS.map((p) => (
           <Button key={p} plane="ai" onClick={() => api.replayInject(p)}>{p}</Button>
         ))}
@@ -58,9 +59,7 @@ export function DirectorConsole({ tick, connected }: { tick: any; connected: boo
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-        {/* Section 12.6 fallbacks */}
-        <Button onClick={() => api.replayInject("AP1")}>Fire agent</Button>
-        <Button onClick={() => api.replaySeek("T-1")}>Skip to T-1</Button>
+        <Button plane="human" onClick={() => api.replayJump()}>Jump to decision</Button>
         <Badge plane={connected ? "data" : "human"}>{connected ? "live" : "offline"}</Badge>
         <span className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>{simClock}</span>
       </div>

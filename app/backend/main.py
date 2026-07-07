@@ -91,6 +91,15 @@ def create_app(repo=None) -> FastAPI:
     async def replay_seek(body: ReplaySeek):
         return replay_control.seek(app.state.repo, body.to_ts)
 
+    @app.post("/api/replay/jump")
+    async def replay_jump():
+        # Director beat control: fast-forward the running simulator to the
+        # decision point (hero peaks, agent fires). Mirrors sim_clock for the
+        # record, then drives the actual in-app stream.
+        replay_control.seek(app.state.repo, "T-1")
+        await simulator.jump_to_decision()
+        return {"running": simulator.running, "jumped_to": "decision"}
+
     # ---- findings / queue --------------------------------------------------
     @app.get("/api/findings")
     async def get_findings():

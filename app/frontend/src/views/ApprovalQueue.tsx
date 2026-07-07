@@ -4,8 +4,10 @@
 // server-side. The policy-exception reject on clubcard-summer is the Act 4 beat.
 
 import { useEffect, useState } from "react";
-import { api } from "../lib";
+import { api, defang } from "../lib";
 import { Badge, Button, Panel } from "../components/ui";
+
+const HERO_DOMAIN = "tesco-clubcard-support.com";
 
 const REASON_CODES = [
   "wrong_classification", "insufficient_evidence", "wrong_action", "policy_exception",
@@ -22,7 +24,9 @@ interface QueueItem {
   status: string;
 }
 
-export function ApprovalQueue({ bump }: { bump: number }) {
+export function ApprovalQueue({
+  bump, analyzing = false, onPending,
+}: { bump: number; analyzing?: boolean; onPending?: (n: number) => void }) {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [reason, setReason] = useState<Record<number, string>>({});
 
@@ -37,9 +41,31 @@ export function ApprovalQueue({ bump }: { bump: number }) {
 
   const pending = items.filter((i) => i.status === "pending_review");
 
+  // Report pending count up so StageFlow and the analyzing signal use the real
+  // number rather than re-fetching.
+  useEffect(() => { onPending?.(pending.length); }, [pending.length, onPending]);
+
   return (
     <Panel title="Approval queue" plane="human" right={<Badge plane="human">{pending.length} pending</Badge>}>
-      {pending.length === 0 && (
+      {pending.length === 0 && analyzing && (
+        <div style={{
+          border: "1px dashed var(--ai)", borderRadius: "var(--r-md)",
+          padding: 14, background: "var(--bg-elevated)",
+          display: "flex", flexDirection: "column", gap: 6,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: 999, background: "var(--ai)",
+              boxShadow: "0 0 8px var(--ai)",
+            }} />
+            <Badge plane="ai">agent working</Badge>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--text-dim)" }}>
+            Agent analyzing {defang(HERO_DOMAIN)} — recommendation pending review.
+          </p>
+        </div>
+      )}
+      {pending.length === 0 && !analyzing && (
         <p style={{ color: "var(--text-faint)" }}>Nothing awaiting approval.</p>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
