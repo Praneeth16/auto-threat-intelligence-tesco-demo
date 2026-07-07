@@ -26,12 +26,18 @@ def _endpoint_name() -> str:
 
 
 def mint_credential_token() -> str:
-    """Mint a fresh Lakebase OAuth database credential for the demo instance.
+    """Return a Lakebase database password.
 
-    Uses w.database.generate_database_credential(instance_names=[...]); the
-    older w.postgres.generate_database_credential(endpoint=...) signature is
-    stale and rejects a plain instance name.
+    In a deployed Databricks App the DB resource injects a rotated PGPASSWORD,
+    so use that directly and do not call the SDK (the App runtime SDK may not
+    expose w.database). Locally (no PGPASSWORD), mint a fresh OAuth credential
+    via w.database.generate_database_credential(instance_names=[...]); the older
+    w.postgres...endpoint= signature is stale and rejects a plain instance name.
     """
+    injected = os.environ.get("PGPASSWORD")
+    if injected:
+        return injected
+
     import uuid
 
     from databricks.sdk import WorkspaceClient
@@ -45,11 +51,17 @@ def mint_credential_token() -> str:
 
 
 class OAuthConnection(psycopg.Connection):
-    """psycopg connection that injects a fresh Lakebase OAuth token as password."""
+    """psycopg connection that injects the Lakebase password.
+
+    When PGPASSWORD is injected (deployed App), psycopg already uses it from the
+    environment, so this connection class only overrides the password in the
+    local-dev path where a fresh OAuth token must be minted per connection.
+    """
 
     @classmethod
     def connect(cls, conninfo: str = "", **kwargs):
-        kwargs["password"] = mint_credential_token()
+        if not os.environ.get("PGPASSWORD"):
+            kwargs["password"] = mint_credential_token()
         return super().connect(conninfo, **kwargs)
 
 
